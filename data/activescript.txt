@@ -1,0 +1,10 @@
+ROI_top=17
+ROI_left=33
+ROI_width=1536
+ROI_bottom=1189
+
+CameraHRatio=  3.6090
+CameraVRatio=  3.6140
+
+AppXCenter=799.6364 
+AppYCenter=601.8524 
