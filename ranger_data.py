@@ -20,6 +20,7 @@ calibration={
             'pixel_offset': 3.57054925419925,
             'buildup': 0,
             'RS': 0,
+            'simple': [2.67065093, 0.30126964, 0.99750753], # simple polynomial fit terms
             'Energy':[      210,
                             200,
                             190,
@@ -303,7 +304,7 @@ reference_data['D90']['G2']=[   365.243,
 
 # create a ranger data object
 class ranger():
-    def __init__(self,rpath=None, RS=0, buildup=0, cal_data=None, ref_data=None):
+    def __init__(self,rpath=None, RS=0, buildup=0, cal_data=None, ref_data=None, simple_cal=True):
         '''
         Initialise a Ranger data object with the following input parameters:
             rpath           - Directory MUST contain Ranger data (.bmp files and activescript.txt)
@@ -317,6 +318,7 @@ class ranger():
         self.buildup = buildup # buildup thickness
         
         # update calibration data
+        self.simple_cal = simple_cal
         self.calibration = {}
         if cal_data:
             for key in cal_data.keys():
@@ -329,6 +331,46 @@ class ranger():
         if ref_data:
             for key in ref_data.keys():
                 self.reference_data = ref_data[key]
+
+    # optimisation functions
+    @staticmethod
+    def objective_simple(x, a=None, obj=True):
+        px2mm = (x[0]+x[1]*a[0]**x[2])+a[1]+a[2]
+        if obj:
+            ref_mm = a[3]
+            ssd = np.sum((px2mm-ref_mm)**2)
+            return ssd
+        else:
+            return px2mm
+    
+    @staticmethod
+    def objective(x, a=None, obj=True):
+        # tunable objective function params
+        px_pitch=x[0] # pixels per mm
+        scint_wer=x[1] # scintllator WER
+        wind_thickness=x[2] # window thickness (pixels)
+        wind_wer=x[3] # window WER
+        px_offset=x[4] # some notional pixel offset
+
+        # fixed objective function params
+        px=a[0] # ranger values (pixels)
+        buildup=a[1] # buildup WET (mm)
+        rs=a[2] # range shifter WET (mm)
+
+        # objective function terms
+        window_WET=wind_thickness/wind_wer/px_pitch # PTFE window screwed onto ranger
+        peak_offset = px_offset/scint_wer # some notional offset
+        range_offset = window_WET+peak_offset+buildup+rs # total range offset inlucing WET of RS and PTFE insert
+        ranger_mm = (px-wind_thickness)/scint_wer/px_pitch+range_offset # ranger term (mm)
+        
+        if obj:
+            cal=a[3] # calibration reference term (mm)
+            # objective function (SSD)
+            return np.sum((ranger_mm-cal)**2)
+        else:
+            return ranger_mm
+    
+    #
     
     def load_data(self,rpath=None, RS=None, buildup=None):
         ''' load Ranger bmp images to obtain IDDs'''
@@ -464,7 +506,7 @@ class ranger():
             plt.title(os.path.basename(self.bmp_list[i]))
         plt.show()
     
-    def idd2mm(self, buildup=None, RS=None):
+    def idd2mm(self, buildup=None, RS=None, simple=None):
         ''' convert IDDs from pixels to WET mm'''
         # re-assign buildup and range shifter values if necessary
         if buildup:
@@ -475,29 +517,30 @@ class ranger():
             self.RS = RS
         if self.RS in ['RS 5cm','RS 3cm','RS 2cm']:
             self.RS = reference_data[self.RS]
-        # assign px to mm parameters
-        px_pitch = self.calibration['pixel_pitch']
-        scint_wer = self.calibration['scintillator_WER']
-        wind_thickness = self.calibration['window_thickness']
-        wind_wer = self.calibration['window_WER']
-        px_offset = self.calibration['pixel_offset']
-        # convert pixel metrics to mm
-        window_WET = wind_thickness/wind_wer/px_pitch # PTFE window screwed onto ranger
-        peak_offset = px_offset/scint_wer # some notional offset
-        range_offset = window_WET+peak_offset+self.buildup+self.RS # total range offset inlucing WET of RS and PTFE insert
-        P100_WET = (np.array(self.metrics['P100'])-wind_thickness)/scint_wer/px_pitch # range in scintillator
-        P100_WET = P100_WET+ range_offset
-        P80_WET = (np.array(self.metrics['P80'])-wind_thickness)/scint_wer/px_pitch # range in scintillator
-        P80_WET = P80_WET+ range_offset
-        P90_WET = (np.array(self.metrics['P90'])-wind_thickness)/scint_wer/px_pitch # range in scintillator
-        P90_WET = P90_WET+ range_offset
-        D80_WET = (np.array(self.metrics['D80'])-wind_thickness)/scint_wer/px_pitch # range in scintillator
-        D80_WET = D80_WET+ range_offset
-        D90_WET = (np.array(self.metrics['D90'])-wind_thickness)/scint_wer/px_pitch # range in scintillator
-        D90_WET = D90_WET+ range_offset
-        D20_WET = (np.array(self.metrics['D20'])-wind_thickness)/scint_wer/px_pitch # range in scintillator
-        D20_WET = D20_WET+ range_offset
-        self.metrics_mm = {'P100':P100_WET.tolist(), 'P80':P80_WET.tolist(), 'P90':P90_WET.tolist(), 'D90':D90_WET.tolist(), 'D80':D80_WET.tolist(), 'D20':D20_WET.tolist()}
+        if simple:
+            self.simple=simple
+            
+        # assign calibration parameters
+        if self.simple:
+            X=self.calibration['simple']
+            convert2mm = self.objective_simple
+        else:
+            X=[ self.calibration['pixel_pitch'],
+                self.calibration['scintillator_WER'],
+                self.calibration['window_thickness'],
+                self.calibration['window_WER'],
+                self.calibration['pixel_offset'] ]
+            convert2mm = self.objective
+        
+        # convert metrics to mm using obj function
+        P100_WET = convert2mm(X,[self.metrics['P100'],buildup,RS],obj=False)
+        P90_WET  = convert2mm(X,[self.metrics['P90'], buildup,RS],obj=False)
+        P80_WET  = convert2mm(X,[self.metrics['P80'], buildup,RS],obj=False)
+        D80_WET  = convert2mm(X,[self.metrics['D80'], buildup,RS],obj=False)
+        D90_WET  = convert2mm(X,[self.metrics['D90'], buildup,RS],obj=False)
+        D20_WET  = convert2mm(X,[self.metrics['D20'], buildup,RS],obj=False)
+        self.metrics_mm = {'P100':P100_WET, 'P80':P80_WET, 'P90':P90_WET,
+                            'D90':D90_WET, 'D80':D80_WET, 'D20':D20_WET}
 
     def idd_metrics(self, plot=False):
         ''' extract metrics from IDDs '''
@@ -564,7 +607,7 @@ class ranger():
             s = "LEFT"
         self.orientation = s
 
-    def calibrate(self,cal_dict=None):
+    def calibrate(self,cal_dict=None, simple=False):
         '''calibrate ranger parameters using an optimizer'''
         if cal_dict:
             calibration = cal_dict
@@ -575,44 +618,30 @@ class ranger():
         D80_px = calibration['RangerD80'] # Ranger measurement D80s in px
         D80_cal = np.array(D80_cal)
         D80_px = np.array(D80_px)
+    
         # assign calibration parameters
-        X=[ calibration['pixel_pitch'],
-            calibration['scintillator_WER'],
-            calibration['window_thickness'],
-            calibration['window_WER'],
-            calibration['pixel_offset'] ]
-        # assign fixed calibration args
-        A = [ D80_px,
-              D80_cal,
-              calibration['buildup'],
-              calibration['RS'] ]
+        if simple:
+            X=calibration['simple']
+        else:
+            X=[ calibration['pixel_pitch'],
+                calibration['scintillator_WER'],
+                calibration['window_thickness'],
+                calibration['window_WER'],
+                calibration['pixel_offset'] ]
         
-        # optimisation function
-        def objective(x, a):
-            # fixed objective function params
-            d80_px=a[0] # ranger d80 (pixels)
-            d80_cal=a[1] # calibration reference D80 (mm)
-            buildup=a[2] # buildup WET (mm)
-            rs=a[3] # range shifter WET (mm)
-
-            # tunable objective function params
-            px_pitch=x[0] # pixels per mm
-            scint_wer=x[1] # scintllator WER
-            wind_thickness=x[2] # window thickness (pixels)
-            wind_wer=x[3] # window WER
-            px_offset=x[4] # some notional pixel offset
-
-            # objective function terms
-            window_WET=wind_thickness/wind_wer/px_pitch # PTFE window screwed onto ranger
-            peak_offset = px_offset/scint_wer # some notional offset
-            range_offset = window_WET+peak_offset+buildup+rs # total range offset inlucing WET of RS and PTFE insert
-            ranger_mm = (d80_px-wind_thickness)/scint_wer/px_pitch+range_offset # ranger D80 term (mm)
-            
-            # objective function (SSD)
-            return np.sum((ranger_mm-d80_cal)**2)
+        # fixed calibration args
+        A = [ D80_px,
+              calibration['buildup'],
+              calibration['RS'],
+              D80_cal ]
         
         # optimizer
-        result = minimize(objective,x0=X,args=A, method='L-BFGS-B')
+        if simple:
+            objective_fn = self.objective_simple
+        else:
+            objective_fn = self.objective
+
+        result = minimize(objective_fn,x0=X,args=A, method='L-BFGS-B')
         newcal = {
             'pixel_pitch':result['x'][0],
             'scintillator_WER':result['x'][1],
