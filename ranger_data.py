@@ -335,6 +335,13 @@ class ranger():
     # optimisation functions
     @staticmethod
     def objective_simple(x, a=None, obj=True):
+        # tunable params
+        if isinstance(x,list):
+            x = np.array(x)
+        # fixed params
+        if isinstance(a[0],list):
+            a[0] = np.array(a[0])
+        # objective function terms (SSD)
         px2mm = (x[0]+x[1]*a[0]**x[2])+a[1]+a[2]
         if obj:
             ref_mm = a[3]
@@ -345,6 +352,8 @@ class ranger():
     
     @staticmethod
     def objective(x, a=None, obj=True):
+        if isinstance(a[0],list):
+            a[0] = np.array(a[0])
         # tunable objective function params
         px_pitch=x[0] # pixels per mm
         scint_wer=x[1] # scintllator WER
@@ -508,7 +517,7 @@ class ranger():
     
     def idd2mm(self, buildup=None, RS=None, simple=None):
         ''' convert IDDs from pixels to WET mm'''
-        # re-assign buildup and range shifter values if necessary
+        # re-assign buildup, range shifter and calibration method values if necessary
         if buildup:
             self.buildup = buildup
         if self.buildup in ['PMMA 11.05','PMMA 11.10','PTFE 13.27']:
@@ -517,11 +526,11 @@ class ranger():
             self.RS = RS
         if self.RS in ['RS 5cm','RS 3cm','RS 2cm']:
             self.RS = reference_data[self.RS]
-        if simple:
-            self.simple=simple
+        if isinstance(simple,bool):
+            self.simple_cal=simple
             
         # assign calibration parameters
-        if self.simple:
+        if self.simple_cal:
             X=self.calibration['simple']
             convert2mm = self.objective_simple
         else:
@@ -531,14 +540,14 @@ class ranger():
                 self.calibration['window_WER'],
                 self.calibration['pixel_offset'] ]
             convert2mm = self.objective
-        
+
         # convert metrics to mm using obj function
-        P100_WET = convert2mm(X,[self.metrics['P100'],buildup,RS],obj=False)
-        P90_WET  = convert2mm(X,[self.metrics['P90'], buildup,RS],obj=False)
-        P80_WET  = convert2mm(X,[self.metrics['P80'], buildup,RS],obj=False)
-        D80_WET  = convert2mm(X,[self.metrics['D80'], buildup,RS],obj=False)
-        D90_WET  = convert2mm(X,[self.metrics['D90'], buildup,RS],obj=False)
-        D20_WET  = convert2mm(X,[self.metrics['D20'], buildup,RS],obj=False)
+        P100_WET = convert2mm(X,[self.metrics['P100'],self.buildup,self.RS],obj=False)
+        P90_WET  = convert2mm(X,[self.metrics['P90'], self.buildup,self.RS],obj=False)
+        P80_WET  = convert2mm(X,[self.metrics['P80'], self.buildup,self.RS],obj=False)
+        D80_WET  = convert2mm(X,[self.metrics['D80'], self.buildup,self.RS],obj=False)
+        D90_WET  = convert2mm(X,[self.metrics['D90'], self.buildup,self.RS],obj=False)
+        D20_WET  = convert2mm(X,[self.metrics['D20'], self.buildup,self.RS],obj=False)
         self.metrics_mm = {'P100':P100_WET, 'P80':P80_WET, 'P90':P90_WET,
                             'D90':D90_WET, 'D80':D80_WET, 'D20':D20_WET}
 
