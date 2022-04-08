@@ -1,6 +1,7 @@
 import os
 import glob
 import warnings
+import re
 import numpy as np
 from copy import copy, deepcopy
 from PIL import Image
@@ -80,6 +81,7 @@ reference_data = {
     'PMMA 11.05': 13.12222222, # mm
     'PMMA 11.10': 13.09555556, # mm
     'PTFE 13.27': 23.67555556, # mm
+    'plateau_depth': 25.0, # mm
 }
 reference_data['D20']['TPS']=[  372.1197284,
                                 359.463304,
@@ -404,36 +406,46 @@ class ranger():
         saturation_mask = self.img>=255
         self.saturated_pixels = np.count_nonzero(saturation_mask)
         
-        with open(os.path.join(rpath,'activescript.txt')) as txt_info:
-            activescript = txt_info.read()
-            idx = activescript.index('CameraHRatio=  ')
-            idx = idx+15
-            self.hratio = float(activescript[idx:idx+6])
-            idx = activescript.index('CameraVRatio=  ')
-            idx = idx+15
-            self.vratio = float(activescript[idx:idx+6])
+        # with open(os.path.join(rpath,'activescript.txt')) as txt_info:
+        #     activescript = txt_info.read()
+        #     idx = activescript.index('CameraHRatio=  ')
+        #     idx = idx+15
+        #     self.hratio = float(activescript[idx:idx+6])
+        #     idx = activescript.index('CameraVRatio=  ')
+        #     idx = idx+15
+        #     self.vratio = float(activescript[idx:idx+6])
         
         with open(os.path.join(rpath,'activescript.txt')) as txt_info:
             lines = txt_info.readlines()
             c = 0
             for l in lines:
+                if 'CameraHRatio=' in l:
+                    self.hratio = float(re.sub('[^0-9.]','', l))
+                if 'CameraVRatio=' in l:
+                    self.vratio = float(re.sub('[^0-9.]','', l))
                 if 'ROI_top=' in l:
-                    self.roi_top = float(l[8:])
+                    self.roi_top = float(re.sub('[^0-9]','', l))
+                    #self.roi_top = float(l[8:])
                     c+=1
                 if 'ROI_left=' in l:
-                    self.roi_left = float(l[9:])
+                    self.roi_left = float(re.sub('[^0-9]','', l))
+                    #self.roi_left = float(l[9:])
                     c+=1
                 if 'ROI_width=' in l:
-                    self.roi_width = float(l[10:])
+                    self.roi_width = float(re.sub('[^0-9]','', l))
+                    #self.roi_width = float(l[10:])
                     c+=1
                 if 'ROI_bottom=' in l:
-                    self.roi_bottom = float(l[11:])
+                    self.roi_bottom = float(re.sub('[^0-9]','', l))
+                    #self.roi_bottom = float(l[11:])
                     c+=1
                 if 'AppXCenter=' in l:
-                    self.x_centre = float(l[11:])
+                    self.x_centre = float(re.sub('[^0-9.]','', l))
+                    #self.x_centre = float(l[11:])
                     c+=1
                 if 'AppYCenter=' in l:
-                    self.y_centre = float(l[11:])
+                    self.y_centre = float(re.sub('[^0-9.]','', l))
+                    #self.y_centre = float(l[11:])
                     c+=1
                 if c == 6:
                     break
@@ -443,13 +455,13 @@ class ranger():
             c = 0
             for l in lines:
                 if 'VideoFrameRate=' in l:
-                    self.fps = float(l[15:])
+                    self.fps = float(re.sub('[^0-9.]','', l))
                     c+=1
                 if 'VideoShutter=' in l:
-                    self.shutter = float(l[13:])
+                    self.shutter = float(re.sub('[^0-9.]','', l))
                     c+=1
                 if 'VideoGain=' in l:
-                    self.gain = float(l[10:])
+                    self.gain = float(re.sub('[^0-9.]','', l))
                     c+=1
                 if c == 3:
                     break
@@ -489,21 +501,33 @@ class ranger():
             raw_idd = raw_idd / raw_idd.max()
             self.raw_idd.append(raw_idd)
 
-    def plot_idd(self,i=-1, E=None,axis=-1):
-        if axis == -1:
-            x = np.array(range(self.raw_idd[0].shape[0]*-1,0))*-1
-        else:
-            x = np.array(range(self.raw_idd[0].shape[0]))
+    def plot_idd(self,i=-1, E=None, axis=-1, units='px'):
+
         if len(self.raw_idd) >= i >=0:
             rng = range(i,i+1)
             single_idd=True
         else:
             rng = range(0,len(self.raw_idd))
             single_idd=False
-        for k in rng:
-            idd = copy(self.raw_idd[k])
-            plt.plot(x,idd)
-        plt.xlabel('Depth (px)')
+        if units == 'mm':
+            for k in rng:
+                y = copy(self.raw_idd[k])
+                idx, _ = find_peaks(y, width=y.max()*0.1, prominence=y.max()*0.075, height=y.max()*0.2)
+                x0 = idx.max()
+                idd = y[:x0]
+                x = np.array(range(idd.shape[0]*-1,0))*-1
+                x_mm=self.objective_simple(x=self.calibration['simple'], a=[x, self.RS, self.buildup], obj=False)
+                plt.plot(x_mm,idd)
+            plt.xlabel('Depth (mm)')
+        else:
+            if axis == -1:
+                x = np.array(range(self.raw_idd[0].shape[0]*-1,0))*-1
+            else:
+                x = np.array(range(self.raw_idd[0].shape[0]))
+            for k in rng:
+                idd = copy(self.raw_idd[k])
+                plt.plot(x,idd)
+            plt.xlabel('Depth (px)')
         plt.ylabel('Dose (norm)')
         if isinstance(E,list):
             if len(E)>1:
