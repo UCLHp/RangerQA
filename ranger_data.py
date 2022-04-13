@@ -333,6 +333,27 @@ class ranger():
         if ref_data:
             for key in ref_data.keys():
                 self.reference_data = ref_data[key]
+        
+        # reset all other data
+        self.img = None
+        self.saturated_pixels = None
+        self.bmp_list = None
+        self.fps = None
+        self.gain = None
+        self.hratio = None
+        self.metrics = None
+        self.metrics_mm = None
+        self.orientation = None
+        self.raw_idd = None
+        self.roi_left = None
+        self.roi_top = None
+        self.roi_width = None
+        self.roi_bottom = None
+        self.shutter = None
+        self.saturated_pixels = None
+        self.x_centre = None
+        self.y_centre = None
+
 
     # optimisation functions
     @staticmethod
