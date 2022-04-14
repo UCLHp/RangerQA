@@ -322,7 +322,6 @@ while True:
             sg.popup('Analysis Required', 'Analyse the session before submitting to database')
 
     if event == '-AnalyseS-': ### Analyse results
-
         # select reference data for results analysis
         rg = values['-G-']
         if rg not in G:
@@ -330,12 +329,13 @@ while True:
             sg.popup("Invalid Gantry","Select a valid gantry from the dropdown list.")
         else:
             session_analysed=True
+            if analysisFlag==1:
+                ref_data = refdata() # dict of reference dataframes
             results_dict = ref_data
-            if analysisFlag==0:
-                for gantry in G:
-                    if gantry != rg and gantry != 'TPS':
-                        del results_dict[gantry]
-                analysisFlag=1
+            analysisFlag=1
+            for gantry in G:
+                if gantry != rg and gantry != 'TPS':
+                    del results_dict[gantry]
 
         # check ranger data directories
         ld = dir_check(data_dir=values['-dirLo-'], HiLo='lo')
