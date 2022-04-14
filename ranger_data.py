@@ -14,14 +14,14 @@ import matplotlib.pyplot as plt
 # Ranger cross-calibration data collected from Giraffe 16/02/2022
 # Update calibration data when required by passing a new dict to cal_data when initialising ranger class
 calibration={
-            'pixel_pitch': 3.60289513376288,
-            'scintillator_WER': 0.937915407838645,
-            'window_WER': 1.40479799993566,
-            'window_thickness': 8.44546391423171,   # window thickness in pixels
-            'pixel_offset': 3.57054925419925,
+            'pixel_pitch': 3.6014772473811,
+            'scintillator_WER': 0.939029045999158,
+            'window_WER': 1.38392204775612,
+            'window_thickness': 8.39035324070824,   # window thickness in pixels
+            'pixel_offset': 3.68031710630704,
             'buildup': 0,
             'RS': 0,
-            'simple': [2.67679738296979, 0.298001072582728, 0.999000304036388], # simple polynomial fit terms
+            'simple': [2.679483045, 0.300200952, 0.997868317], # simple polynomial fit terms
             'Energy':[      210,
                             200,
                             190,
@@ -52,21 +52,21 @@ calibration={
                             64.0,
                             51.7,
                             41.0],
-            'RangerD80':[   944,
-                            866,
-                            793,
-                            721,
-                            653,
-                            585,
-                            522,
-                            463,
-                            404,
-                            349,
-                            300,
-                            252,
-                            207,
-                            166,
-                            127],
+            'RangerD80':[   944.4699332,
+                            866.2717149,
+                            793.0258475,
+                            721.1216981,
+                            652.5912317,
+                            585.3165138,
+                            522.0070175,
+                            462.5039216,
+                            403.65,
+                            349.0386431,
+                            299.6991018,
+                            251.6478632,
+                            206.6309706,
+                            165.5074041,
+                            126.9716878],
             }
 # reference IDD data collected from "Giraffe - QA Record.xlsx" 17/3/2022 and WET measurements from 16/02/2022 on Gantry 3
 # Update reference data when required by passing a new dict to ref_data when initialising ranger class
@@ -598,6 +598,54 @@ class ranger():
 
     def idd_metrics(self, plot=False):
         ''' extract metrics from IDDs '''
+        def _distal_prox(y,x100,x0):
+            d90_flag = True
+            d80_flag = True
+            d20_flag = True
+            for i in range(x100,0,-1):
+                d=0.9
+                if y[i]<y[x100]*d and d90_flag:
+                    xp=[y[i],y[i+1]]
+                    fp=[i,i+1]
+                    d90_flag = False
+                    d90 = np.interp(d,xp=xp,fp=fp)
+
+                d=0.8
+                if y[i]<y[x100]*d and d80_flag:
+                    xp=[y[i],y[i+1]]
+                    fp=[i,i+1]
+                    d80_flag = False
+                    d80 = np.interp(d,xp=xp,fp=fp)
+
+                d=0.2
+                if y[i]<y[x100]*d and d20_flag:
+                    xp=[y[i],y[i+1]]
+                    fp=[i,i+1]
+                    d20_flag = False
+                    d20 = np.interp(d,xp=xp,fp=fp)
+
+            # find Proximal metrics
+            p90_flag = True
+            p80_flag = True
+            p20_flag = True
+            for i in range(x100,x0,1):
+                d=0.9
+                if y[i]<y[x100]*d and p90_flag:
+                    xp=[y[i],y[i-1]]
+                    fp=[i,i-1]
+                    p90_flag = False
+                    p90 = np.interp(d,xp=xp,fp=fp)
+
+                d=0.8
+                if y[i]<y[x100]*d and p80_flag:
+                    xp=[y[i],y[i-1]]
+                    fp=[i,i-1]
+                    p80_flag = False
+                    p80 = np.interp(d,xp=xp,fp=fp)
+
+            x = [p80,p90,d90,d80,d20]
+            return x
+
         metrics = {'P100':[], 'P80':[], 'P90':[], 'D90':[], 'D80':[], 'D20':[]}
         peaks = np.empty((len(self.raw_idd),2))
         n=0
@@ -610,27 +658,19 @@ class ranger():
             pk = peak_metrics['peak_heights'].max()
             peaks[n,1] = pk
             peaks[n,0] = x100
-            dist = copy(y)
-            prox = copy(y)
-            dist[x100:]=0
-            prox[0:x100]=0
+            xraw = _distal_prox(y,x100,x0)
             #Bragg peak (P100)
             metrics['P100'].append(x0 - x100)
             # P80
-            x = np.abs(prox - pk*0.8).argmin()
-            metrics['P80'].append(x0-x)
+            metrics['P80'].append(x0-xraw[0])
             # P90
-            x = np.abs(prox - pk*0.9).argmin()
-            metrics['P90'].append(x0-x)
+            metrics['P90'].append(x0-xraw[1])
             # D90
-            x = np.abs(dist - pk*0.9).argmin()
-            metrics['D90'].append(x0-x)
+            metrics['D90'].append(x0-xraw[2])
             # D80
-            x = np.abs(dist - pk*0.8).argmin()
-            metrics['D80'].append(x0-x)
+            metrics['D80'].append(x0-xraw[3])
             # D20
-            x = np.abs(dist - pk*0.2).argmin()
-            metrics['D20'].append(x0-x)
+            metrics['D20'].append(x0-xraw[4])
             n+=1
         self.metrics=metrics
         self.idd2mm()
