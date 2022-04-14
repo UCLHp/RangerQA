@@ -21,7 +21,7 @@ calibration={
             'pixel_offset': 3.57054925419925,
             'buildup': 0,
             'RS': 0,
-            'simple': [2.67065093, 0.30126964, 0.99750753], # simple polynomial fit terms
+            'simple': [2.67679738296979, 0.298001072582728, 0.999000304036388], # simple polynomial fit terms
             'Energy':[      210,
                             200,
                             190,
