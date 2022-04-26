@@ -1,17 +1,19 @@
 import datetime
-from genericpath import isfile
 import time
 import glob
 import os
-import csv
 import warnings
-from webbrowser import BackgroundBrowser
 import pandas as pd
 import numpy as np
 import PySimpleGUI as sg
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from ranger_data import ranger
+from report import report_maker
+from PIL import Image
+
+# Use simple Ranger calibration factors
+sc = True
 
 # WARN/FAIL tresholds Levels
 delta = [0.5,1.0] # abs(mm)
@@ -21,7 +23,7 @@ passflag_labels = ['PASS','WARN','FAIL']
 # Dummy data
 G  = ['Gantry 1','Gantry 2','Gantry 3','Gantry 4']
 Op = ['AGr','SC','NA']
-RS = ['None', '5 cm', '3 cm', '2 cm']
+RS = ['None', 'RS 5cm', 'RS 3cm', 'RS 2cm']
 BU = ['None', 'PTFE 13.27', 'PMMA 11.05', 'PMMA 11.10']
 
 # Load reference data from csv - should be loaded from DB in future
@@ -66,26 +68,25 @@ def ref_layout(ref_data, size=(8,1)):
 # Session and Results classes
 class RangerSession():
     def __init__(self):
-        self.sdate=None,    # session date
-        self.gantry=None,   # gantry name
-        self.op1=None,  # operator 1
-        self.op2=None,  # operator 2
-        self.dirLo=None,    # Beamworks output directory 210-70 MeV
-        self.dirHi=None,    # Beamworks output directory 220-245 MeV
-        self.RSlo=None,     # range shifter
-        self.RShi=None,     # range shifter
-        self.BUlo=None,     # buildup
-        self.BUhi=None,     # buildup
-        self.session=None   # PASS / FAIL flag
+        self.sess_df=None,    # session dataframe
+        self.session=None   # PASS / FAIL flags
     
     def assign(self, values):
-        '''assign field values to class vars'''
+        '''assign field values to dataframe'''
+        s = {'ADate': values['ADate'],
+             'Operator1': values['-Op1-'],
+             'Operator2': values['-Op2-'],
+             'Gantry': values['-G-'],
+             'RSHi': values['-rsHi-'],
+             'RSLo': values['-rsLo-'],
+             'BUHi': values['-buHi-'],
+             'BULo': values['-buLo-'],
+             'PassFlagHi': values['-spfHi-'],
+             'PassFlagLo': values['-spfLo-'],
+        }
+        self.sess_df = pd.DataFrame(data=s, index=[range(len(s))])
+        return self.sess_df
 
-    def field_check(self):
-        '''check fields for mistakes '''
-    
-    def analyse(self):
-        '''call ranger class and return metrics in mm'''
 
 
 class RangerResults():
@@ -165,42 +166,68 @@ def field_check(values):
     return pass_fields, msg
 
 # export results to csv
-def export_csv(dict={},dname='.'):
+def export_csv(dict={}, df=None, dname='.'):
     csvtime = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
     csv_dir = dname+os.sep+csvtime
     os.makedirs(csv_dir, exist_ok=True)
-    for t, r in dict.items():
-        fname = csv_dir+os.sep+t
-        r.columns = r.columns.str.strip()
-        r.to_csv(fname,index=False)
-        print("Saved: "+fname)
+    # write results table
+    fname = csv_dir+os.sep+'results_'+csvtime+'.csv'
+    n=0
+    for _, r in dict.items():
+        if n==0:
+            r.to_csv(fname,index=False)
+            n+=1
+        else:
+            r.to_csv(fname,index=False,mode='a',header=False)
+        print("Saved results: "+fname)
+    # write session table
+    fname = csv_dir+os.sep+'session_'+csvtime+'.csv'
+    df.to_csv(fname, index=False)
+    return csv_dir
 
 # graphing
 _VARS = {'fig_agg': False, 'pltFig': False}
 
 def draw_figure(canvas, figure):
-    figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
+    figure_canvas_agg = FigureCanvasTkAgg(figure,canvas)
     figure_canvas_agg.draw()
     figure_canvas_agg.get_tk_widget().pack(side='top', fill='both', expand=1)
     return figure_canvas_agg
 
-def format_fig(xData,yData):
-    plt.plot(xData,yData,'--k',linewidth=1)
+def save_figure(canvas, figure, dir):
+    figure_canvas_agg = FigureCanvasTkAgg(figure,canvas)
+    figure_canvas_agg.draw()
+    rgba = np.asarray(figure_canvas_agg.buffer_rgba())
+    im = Image.fromarray(rgba)
+    im = im.convert('RGB')
+    im.save(os.path.abspath(os.path.join(dir, 'IDD_plots.jpg')))
+
+def format_fig(xdata=[],ydata=[]):
+    plt.plot(xdata,ydata,'.')
     plt.title('Ranger IDDs', fontsize=10, fontweight='bold',color='w')
     plt.xlabel('Depth (mm)', fontsize=8, fontweight='bold',color='w')
     plt.ylabel('Dose (norm.)', fontsize=8, fontweight='bold',color='w')
-    plt.xlim([0, 450])
-    plt.ylim([0, 1])
+    plt.xlim([0, 420])
+    plt.ylim([0, 1.025])
     plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8)
     plt.tick_params(colors='w')
     plt.grid(visible=True)
     plt.tight_layout()
 
-
-
-
-
-
+def init_figure():
+    _VARS['pltFig'] = plt.figure(figsize=(8.15,3.5),facecolor='#282923')
+    format_fig()
+    _VARS['fig_agg'] = draw_figure(window['figCanvas'].TKCanvas, _VARS['pltFig'])
+def update_fig(idd_mm=None):
+    _VARS['fig_agg'].get_tk_widget().forget()
+    plt.clf()
+    format_fig()
+    if idd_mm:
+        for x,y in idd_mm:
+            plt.plot(x, y)
+    _VARS['fig_agg'] = draw_figure(
+        window['figCanvas'].TKCanvas, _VARS['pltFig'])
 
 
 # build GUI
@@ -211,15 +238,16 @@ def build_window():
     # figure
     img_file = os.path.abspath(os.path.join(os.path.dirname(__file__), 'pistachios.png'))
     plt_layout = [[sg.Image(img_file)]]  
+    plt_layout = [[sg.Canvas(size=(1000,500),key='figCanvas')]]
 
     # session
     sess1_layout = [
-        [sg.T('Date', justification='right', size=(10,1)), sg.Input(key='ADate', size=(18,1)),
-         sg.T('Operator 1', justification='right', size=(10,1)), sg.DD(Op, size=(18,1), key='-Op1-'),
+        [sg.T('Date', justification='right', size=(10,1)), sg.Input(key='ADate', size=(18,1), enable_events=True, ),
+         sg.T('Operator 1', justification='right', size=(10,1)), sg.DD(Op, size=(18,1), enable_events=True, key='-Op1-'),
          sg.T('Gantry', justification='right', size=(10,1)), sg.DD(G, size=(18,1), enable_events=True, key='-G-'),
         ],
         [sg.T('', size=(10,1)), sg.CalendarButton('dd/mm/yyyy hh:mm:ss', font=('size',9), target='ADate', format='%d/%m/%Y %H:%M:%S', close_when_date_chosen=True, no_titlebar=False, key='-CalB-'),
-         sg.T('Operator 2', justification='right', size=(10,1)), sg.DD(Op, size=(18,1), key='-Op2-'),
+         sg.T('Operator 2', justification='right', size=(10,1)), sg.DD(Op, size=(18,1), enable_events=True, key='-Op2-'),
         ],
     ]
 
@@ -257,15 +285,16 @@ def build_window():
     button_layout = [
         #sg.FileBrowse('Load Gantry Ref', target='-GRef-'), sg.In(key='-GRef-', enable_events=True, visible=False),
         #sg.FileBrowse('Load TPS Ref', target='-TRef-'), sg.In(key='-TRef-', enable_events=True, visible=False),
-        sg.B('Submit to Database', disabled=True, key='-Submit-'),
         sg.B('Analyse Session', key='-AnalyseS-'),
-        sg.FolderBrowse('Export to CSV', key='-CSV_WRITE-', disabled=True, target='-Export-'), sg.In(key='-Export-', enable_events=True, visible=False),
+        sg.FolderBrowse('Save Session', key='-CSV_WRITE-', disabled=True, target='-Export-'), sg.In(key='-Export-', enable_events=True, visible=False),
+        sg.B('Submit to Database', disabled=True, key='-Submit-'),
         sg.B('Clear', key='-Clear-'),
         sg.B('End Session', key='-Cancel-'),
     ]
 
     # plot figure frame
-    fig_frame = sg.Frame('Results', [[sg.Column([[sg.Image(img_file,size=(1000,500))]], justification='center')]])
+    #fig_frame = sg.Frame('Results', [[sg.Column([[sg.Image(img_file,size=(1000,500))]], justification='center')]])
+    fig_frame = sg.Frame('Results', [[sg.Column(plt_layout)]])
     # combine layout elements
     layout1 = [
         [session_frame],
@@ -289,8 +318,11 @@ window = build_window()
 window['TPS'].update(visible=True)
 session_analysed = False
 analysisFlag = 0
+session = RangerSession()
+init_figure()
 while True:
     event, values = window.read()
+
     ### reset analysed flag if there is just about any event
     if event not in ['-Submit-','-AnalyseS-','-Export-','-ML-','TabGroup','RangerTab','TPS','Gantry 4','Gantry 3','Gantry 2','Gantry 1',sg.WIN_CLOSED]:
         session_analysed=False
@@ -345,21 +377,44 @@ while True:
         
         # load ranger data
         if session_analysed:
+            if values['-rsLo-']=='None':
+                rslo_val = 0
+            else:
+                rslo_val = values['-rsLo-']
+            if values['-rsHi-']=='None':
+                rshi_val = 0
+            else:
+                rshi_val = values['-rsHi-']
+            if values['-buLo-']=='None':
+                bulo_val = 0
+            else:
+                bulo_val = values['-buLo-']
+            if values['-buHi-']=='None':
+                buhi_val = 0
+            else:
+                buhi_val = values['-buHi-']
+
             try:
-                rlo.__init__()
-                rhi.__init__()
+                rlo.__init__(simple_cal=sc)
+                rhi.__init__(simple_cal=sc)
+                print("re-initialising...")
             except:
-                rlo = ranger()
-                rhi = ranger()
+                rlo = ranger(simple_cal=sc)
+                rhi = ranger(simple_cal=sc)
+                print("initialising...")
             try:
-                rlo.load_data(rpath=values['-dirLo-'])
-                rhi.load_data(rpath=values['-dirHi-'],RS='RS 5cm', buildup='PTFE 13.27')
+                print("processing low energy data... ")
+                rlo.load_data(rpath=values['-dirLo-'], RS=rslo_val, buildup=bulo_val)
+                print("processing high energy data... ")
+                rhi.load_data(rpath=values['-dirHi-'], RS=rshi_val, buildup=buhi_val)
                 session_analysed = True
             except:
+                print("data could not be loaded. Utter toss.")
                 session_analysed = False
 
         if session_analysed:
             try:
+                print("analysing results...")
                 # assign IDD metrics to reference dataframes
                 results_dict[rg]['RangerD20'] = rhi.metrics_mm['D20'].tolist() + rlo.metrics_mm['D20'].tolist()
                 results_dict[rg]['RangerD80'] = rhi.metrics_mm['D80'].tolist() + rlo.metrics_mm['D80'].tolist()
@@ -401,16 +456,47 @@ while True:
                         elif loflag==0:
                             window['-spfLo-']('WARN', background_color='orange')
                     
+        # update fig
+        if session_analysed:
+            idd_mm = rhi.idd_mm + rlo.idd_mm
+            update_fig(idd_mm=idd_mm) # plot results
+
         # update GUI
+        if session_analysed and values['ADate']:
+            adate_col = values['ADate']
+            date_fail = False
+            for t, r in results.results_dict.items():
+                try:
+                    r.insert(loc=0, column='Reference Data', value=t)
+                    r.insert(loc=0, column='ADate', value=adate_col)
+                    rindex = []
+                    for n,i in enumerate(r['Reference Data']):
+                        rindex.append(datetime.datetime.now().strftime("%y%m%d%H%M%S")+t[-1]+f'{n:02}' )
+                    r.insert(loc=0, column='Rindex', value=rindex)
+                except:
+                    date_fail=True
+                    pass
+            if date_fail:
+                sg.popup("Check Date","Enter a valid date before analysing results.")
+        else:
+            session_analysed=False
+            print("Session not analysed.")
+
+        if session_analysed:
+            values['-spfHi-']=window['-spfHi-'].__dict__['DisplayText']
+            values['-spfLo-']=window['-spfLo-'].__dict__['DisplayText']
+            sess_df = session.assign(values)        
             print("Session analysed")
             window['-CSV_WRITE-'](disabled=False) # enable Export button
             window['-Submit-'](disabled=False) # enable Export button
             window['ADate'](disabled=True) # freeze session ID
+            window['-CalB-'](disabled=True) # freeze calendar button
     
     if event == '-Export-': ### Export results to csv
         if session_analysed and values['-Export-'] != '' and os.path.isdir(values['-Export-']):
-            export_csv(results.results_dict,values['-Export-'])
-            print("Session exported")
+            outdir = export_csv(results.results_dict,sess_df,values['-Export-'])
+            save_figure(window['figCanvas'].TKCanvas, _VARS['pltFig'],outdir)
+            report_maker(results.results_dict,sess_df,outdir)
         elif values['-Export-'] == '':
             sg.popup('Directory Not Selected', 'Choose a valid directory')
         elif os.path.isdir(values['-Export-']) is False:
@@ -426,13 +512,17 @@ while True:
         for key in values:
             if key not in except_list:
                 window[key]('')
-        window['ADate'](disabled=False) # freeze session ID
+        window['ADate'](disabled=False) # unfreeze session ID
+        window['-CalB-'](disabled=False)
         window['-AnalyseS-'](disabled=False)
+        window['-spfHi-']('PASS', background_color='green')
+        window['-spfLo-']('PASS', background_color='green')
 
     if event == sg.WIN_CLOSED or event == '-Cancel-': ### user closes window or clicks cancel
         print("Session Ended.")
         break
 
+#print("Exported to: ", save_element_as_file(window['TPS'], 'C:\\Users\\agrimwoo\Desktop\\aaab.png'))
 window.close()
 
 
