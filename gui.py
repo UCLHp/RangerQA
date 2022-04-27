@@ -22,7 +22,7 @@ passflag_labels = ['PASS','WARN','FAIL']
 
 # Dummy data
 G  = ['Gantry 1','Gantry 2','Gantry 3','Gantry 4']
-Op = ['AGr','SC','NA']
+Op = ['AB', 'AG', 'AGr', 'AJP', 'AK', 'AM', 'AT', 'AW', 'CB', 'CG', 'PI', 'RM', 'SC', 'SG', 'SavC', 'TNC', 'VMA', 'VR']
 RS = ['None', 'RS 5cm', 'RS 3cm', 'RS 2cm']
 BU = ['None', 'PTFE 13.27', 'PMMA 11.05', 'PMMA 11.10']
 
@@ -526,7 +526,6 @@ while True:
         print("Session Ended.")
         break
 
-#print("Exported to: ", save_element_as_file(window['TPS'], 'C:\\Users\\agrimwoo\Desktop\\aaab.png'))
 window.close()
 
 
