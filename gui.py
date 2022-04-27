@@ -318,6 +318,7 @@ window = build_window()
 window['TPS'].update(visible=True)
 session_analysed = False
 analysisFlag = 0
+export_dir = 'none selected'
 session = RangerSession()
 init_figure()
 while True:
@@ -493,10 +494,13 @@ while True:
             window['-CalB-'](disabled=True) # freeze calendar button
     
     if event == '-Export-': ### Export results to csv
-        if session_analysed and values['-Export-'] != '' and os.path.isdir(values['-Export-']):
+        if export_dir == values['-Export-']:
+            pass
+        elif session_analysed and values['-Export-'] != '' and os.path.isdir(values['-Export-']):
             outdir = export_csv(results.results_dict,sess_df,values['-Export-'])
             save_figure(window['figCanvas'].TKCanvas, _VARS['pltFig'],outdir)
             report_maker(results.results_dict,sess_df,outdir)
+            export_dir = values['-Export-']
         elif values['-Export-'] == '':
             sg.popup('Directory Not Selected', 'Choose a valid directory')
         elif os.path.isdir(values['-Export-']) is False:

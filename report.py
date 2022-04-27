@@ -69,7 +69,8 @@ def report_maker(results_dict=None,session_df=None,dirname='.'):
         op2 = session_df.Operator2[0]
 
     # doc elements
-    doc = SimpleDocTemplate(os.path.join(dirname,'RangerReport.pdf'), pagesize=A4,
+    fname = os.path.join(dirname,'RangerReport.pdf')
+    doc = SimpleDocTemplate(fname, pagesize=A4,
                             rightMargin=72,leftMargin=72,
                             topMargin=40,bottomMargin=18)
     Story = []
@@ -97,25 +98,29 @@ def report_maker(results_dict=None,session_df=None,dirname='.'):
     title = '<font size="12"><u>Summary of Ranger Measurements:</u></font>'
     Story.append(Paragraph(title, styles["Justify"]))
     Story.append(Spacer(1, 10))
-    rsline = '<font size="10">245 MeV - 220 MeV:</font>'
+    rsline = '<font size="10"><u>245 MeV - 220 MeV:</u></font>'
     Story.append(Paragraph(rsline, styles["Indent"]))
     rsline = '<font size="8">Range Shifter: {}</font>'.format(session_df.RSHi[0])
     Story.append(Paragraph(rsline, styles["Indent"]))
     rsline = '<font size="8">Buildup: {}</font>'.format(session_df.BUHi[0])
     Story.append(Paragraph(rsline, styles["Indent"]))
     Story.append(Spacer(1, 5))
-    rsline = '<font size="10">210 MeV - 70 MeV:</font>'
+    rsline = '<font size="10"><u>210 MeV - 70 MeV:</u></font>'
     Story.append(Paragraph(rsline, styles["Indent"]))
     rsline = '<font size="8">Range Shifter: {}</font>'.format(session_df.RSLo[0])
     Story.append(Paragraph(rsline, styles["Indent"]))
     rsline = '<font size="8">Buildup: {}</font>'.format(session_df.BULo[0])
     Story.append(Paragraph(rsline, styles["Indent"]))
     Story.append(Spacer(1, 5))
-    gantryline = '<font size="10">{}</font>'.format(rkeys[0]+":")
+    gantryline = '<font size="10"><u>{}</u></font>'.format(rkeys[0]+" Reference Comparison (mm):")
     Story.append(Paragraph(gantryline, styles["Justify"]))
+    Story.append(Spacer(1, 5))
     Story.append(t1)
     Story.append(Spacer(1, 10))
-    gantryline = '<font size="10">{}</font>'.format(rkeys[1]+":")
+    gantryline = '<font size="10"><u>{}</u></font>'.format(rkeys[1]+" Reference Comparison(mm):")
     Story.append(Paragraph(gantryline, styles["Justify"]))
+    Story.append(Spacer(1, 5))
     Story.append(t2)
     doc.build(Story)
+
+    print("Saved report: "+fname)
