@@ -402,7 +402,6 @@ class ranger():
         else:
             return ranger_mm
     
-    #
     
     def load_data(self,rpath=None, RS=None, buildup=None):
         ''' load Ranger bmp images to obtain IDDs'''
@@ -415,7 +414,6 @@ class ranger():
         if buildup:
             self.buildup = buildup
 
-
         bmp_list = glob.glob(os.path.join(rpath,'*.bmp'))
         img0 = Image.open(bmp_list[0])
         img0 = np.array(img0)
@@ -427,14 +425,12 @@ class ranger():
         saturation_mask = self.img>=255
         self.saturated_pixels = np.count_nonzero(saturation_mask)
         
-        # with open(os.path.join(rpath,'activescript.txt')) as txt_info:
-        #     activescript = txt_info.read()
-        #     idx = activescript.index('CameraHRatio=  ')
-        #     idx = idx+15
-        #     self.hratio = float(activescript[idx:idx+6])
-        #     idx = activescript.index('CameraVRatio=  ')
-        #     idx = idx+15
-        #     self.vratio = float(activescript[idx:idx+6])
+        #check beam orientation in image stack
+        self.check_orientation()
+        if self.orientation == "TOP":
+            self.img = np.flip(self.img,1)
+        elif self.orientation != "BOTTOM":
+            warnings.warn("Image orientation incorrect. Beam origin is "+self.orientation+", but should be from BOTTOM. IDD metrics may be unreliable.")
         
         with open(os.path.join(rpath,'activescript.txt')) as txt_info:
             lines = txt_info.readlines()
@@ -446,27 +442,21 @@ class ranger():
                     self.vratio = float(re.sub('[^0-9.]','', l))
                 if 'ROI_top=' in l:
                     self.roi_top = float(re.sub('[^0-9]','', l))
-                    #self.roi_top = float(l[8:])
                     c+=1
                 if 'ROI_left=' in l:
                     self.roi_left = float(re.sub('[^0-9]','', l))
-                    #self.roi_left = float(l[9:])
                     c+=1
                 if 'ROI_width=' in l:
                     self.roi_width = float(re.sub('[^0-9]','', l))
-                    #self.roi_width = float(l[10:])
                     c+=1
                 if 'ROI_bottom=' in l:
                     self.roi_bottom = float(re.sub('[^0-9]','', l))
-                    #self.roi_bottom = float(l[11:])
                     c+=1
                 if 'AppXCenter=' in l:
                     self.x_centre = float(re.sub('[^0-9.]','', l))
-                    #self.x_centre = float(l[11:])
                     c+=1
                 if 'AppYCenter=' in l:
                     self.y_centre = float(re.sub('[^0-9.]','', l))
-                    #self.y_centre = float(l[11:])
                     c+=1
                 if c == 6:
                     break
@@ -491,10 +481,6 @@ class ranger():
         self.idd() # generate IDDs
         self.idd_metrics() # analyse IDDs
 
-        #check beam orientation in image stack
-        self.check_orientation()
-        if self.orientation != "BOTTOM":
-            warnings.warn("Image orientation incorrect. Beam origin is "+self.orientation+", but should be from BOTTOM. IDD metrics will be unreliable.")
 
     def plot_img(self,i):
         ''' plot a bmp image (useful for checking orientation)'''
@@ -531,14 +517,8 @@ class ranger():
             rng = range(0,len(self.raw_idd))
             single_idd=False
         if units == 'mm':
-            for k in rng:
-                y = copy(self.raw_idd[k])
-                idx, _ = find_peaks(y, width=y.max()*0.1, prominence=y.max()*0.075, height=y.max()*0.2)
-                x0 = idx.max()
-                idd = y[:x0]
-                x = np.array(range(idd.shape[0]*-1,0))*-1
-                x_mm=self.objective_simple(x=self.calibration['simple'], a=[x, self.RS, self.buildup], obj=False)
-                plt.plot(x_mm,idd)
+            for x,y in self.idd_mm:
+                plt.plot(x,y)
             plt.xlabel('Depth (mm)')
         else:
             if axis == -1:
@@ -587,7 +567,7 @@ class ranger():
             convert2mm = self.objective
 
         # convert metrics to mm using obj function
-        P100_WET = convert2mm(X,[self.metrics['P100'],self.buildup,self.RS],obj=False)
+        P100_WET = convert2mm(X,[self.metrics['P100'], self.buildup,self.RS],obj=False)
         P90_WET  = convert2mm(X,[self.metrics['P90'], self.buildup,self.RS],obj=False)
         P80_WET  = convert2mm(X,[self.metrics['P80'], self.buildup,self.RS],obj=False)
         D80_WET  = convert2mm(X,[self.metrics['D80'], self.buildup,self.RS],obj=False)
@@ -595,6 +575,17 @@ class ranger():
         D20_WET  = convert2mm(X,[self.metrics['D20'], self.buildup,self.RS],obj=False)
         self.metrics_mm = {'P100':P100_WET, 'P80':P80_WET, 'P90':P90_WET,
                             'D90':D90_WET, 'D80':D80_WET, 'D20':D20_WET}
+        
+        # convert IDDs to mm using obj function
+        self.idd_mm = []
+        for y in self.raw_idd:
+            idx, _ = find_peaks(y, width=y.max()*0.1, prominence=y.max()*0.075, height=y.max()*0.2)
+            x0 = idx.max()
+            idd = y[:x0]
+            idd = np.flip(idd)
+            x = np.array(range(idd.shape[0]))
+            x_mm=convert2mm(X, [x,  self.buildup,self.RS], obj=False)
+            self.idd_mm.append([x_mm,idd])
 
     def idd_metrics(self, plot=False):
         ''' extract metrics from IDDs '''
