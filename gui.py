@@ -219,6 +219,7 @@ def init_figure():
     _VARS['pltFig'] = plt.figure(figsize=(8.15,3.5),facecolor='#282923')
     format_fig()
     _VARS['fig_agg'] = draw_figure(window['figCanvas'].TKCanvas, _VARS['pltFig'])
+
 def update_fig(idd_mm=None):
     _VARS['fig_agg'].get_tk_widget().forget()
     plt.clf()
@@ -342,7 +343,7 @@ while True:
         if session_analysed:
             checked, msg = field_check(values)
             if checked:    
-                print('Data submitted to database.')
+                print('Data NOT submitted to database.')
                 session_analysed=True
                 window['-Submit-'](disabled=True) # disable access export button
                 window['-AnalyseS-'](disabled=True) # disable access export button
@@ -512,16 +513,21 @@ while True:
         session_analysed=False
         print("Session cleared.")
         #except the following:
-        except_list = ['-CalB-', '-CSV_WRITE-','figCanvas','LoBrowse','HiBrowse'] # calendar button text
+        except_list = ['-CalB-', '-CSV_WRITE-','figCanvas','LoBrowse','HiBrowse','TabGroup'] # calendar button text
         for key in values:
             if key not in except_list:
                 window[key]('')
+
+        for key in window.AllKeysDict.keys():
+            if 'RangerD' in key or 'diff' in key:
+                window[key]('', background_color='#282923')
+
         window['ADate'](disabled=False) # unfreeze session ID
         window['-CalB-'](disabled=False)
         window['-AnalyseS-'](disabled=False)
         window['-spfHi-']('PASS', background_color='green')
         window['-spfLo-']('PASS', background_color='green')
-
+        update_fig()
     if event == sg.WIN_CLOSED or event == '-Cancel-': ### user closes window or clicks cancel
         print("Session Ended.")
         break
