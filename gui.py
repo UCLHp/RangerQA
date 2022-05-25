@@ -179,10 +179,11 @@ def export_csv(dict={}, df=None, dname='.'):
             n+=1
         else:
             r.to_csv(fname,index=False,mode='a',header=False)
-        print("Saved results: "+fname)
+    print("Saved results: "+fname)
     # write session table
     fname = csv_dir+os.sep+'session_'+csvtime+'.csv'
     df.to_csv(fname, index=False)
+    print("Saved session: "+fname)
     return csv_dir
 
 # graphing
