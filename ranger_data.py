@@ -415,6 +415,7 @@ class ranger():
             self.buildup = buildup
 
         bmp_list = glob.glob(os.path.join(rpath,'*.bmp'))
+        bmp_list.sort()
         img0 = Image.open(bmp_list[0])
         img0 = np.array(img0)
         self.img = np.empty((len(bmp_list),img0.shape[0],img0.shape[1]))
