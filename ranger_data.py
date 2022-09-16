@@ -419,9 +419,10 @@ class ranger():
         img0 = np.array(img0)
         self.img = np.empty((len(bmp_list),img0.shape[0],img0.shape[1]))
         self.img[0,:] = img0
-        for i in (pbar := tqdm(range(1,len(bmp_list)))):
-            self.img[i,:] = np.array(Image.open(bmp_list[i]))
-            pbar.set_description('Loading '+os.path.basename(bmp_list[i]))
+        pbar = tqdm(bmp_list)
+        for i, bmp in enumerate(pbar):
+            pbar.set_description('Loading '+os.path.basename(bmp))
+            self.img[i,:] = np.array(Image.open(bmp))
         saturation_mask = self.img>=255
         self.saturated_pixels = np.count_nonzero(saturation_mask)
         
