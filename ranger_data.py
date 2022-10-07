@@ -14,14 +14,14 @@ import matplotlib.pyplot as plt
 # Ranger cross-calibration data collected from Giraffe 16/02/2022
 # Update calibration data when required by passing a new dict to cal_data when initialising ranger class
 calibration={
-            'pixel_pitch': 3.6014772473811,
-            'scintillator_WER': 0.939029045999158,
-            'window_WER': 1.38392204775612,
-            'window_thickness': 8.39035324070824,   # window thickness in pixels
-            'pixel_offset': 3.68031710630704,
+            'pixel_pitch': 3.5331762559580806,
+            'scintillator_WER': 0.9549915289642864,
+            'window_WER': 1.5257097725668383,
+            'window_thickness': 8.401448046401558,   # window thickness in pixels
+            'pixel_offset': 3.5561382831730874,
             'buildup': 0,
             'RS': 0,
-            'simple': [2.679483045, 0.300200952, 0.997868317], # simple polynomial fit terms
+            'simple': [2.67944407, 0.29823315, 0.99913209], # simple polynomial fit terms
             'Energy':[      210,
                             200,
                             190,
@@ -729,14 +729,22 @@ class ranger():
             objective_fn = self.objective
 
         result = minimize(objective_fn,x0=X,args=A, method='L-BFGS-B')
-        newcal = {
-            'pixel_pitch':result['x'][0],
-            'scintillator_WER':result['x'][1],
-            'window_thickness':result['x'][2],
-            'window_WER':result['x'][3],
-            'pixel_offset':result['x'][4],
-            'results': result,
-            'CalD80': calibration['CalD80'],
-            'RangerD80': calibration['RangerD80'],
-        }
+        if simple:
+            newcal = {
+                'simple':result['x'],
+                'results':result,
+                'CalD80':calibration['CalD80'],
+                'RangerD80':calibration['RangerD80'],
+            }
+        else:
+            newcal = {
+                'pixel_pitch':result['x'][0],
+                'scintillator_WER':result['x'][1],
+                'window_thickness':result['x'][2],
+                'window_WER':result['x'][3],
+                'pixel_offset':result['x'][4],
+                'results': result,
+                'CalD80': calibration['CalD80'],
+                'RangerD80': calibration['RangerD80'],
+            }
         return newcal
