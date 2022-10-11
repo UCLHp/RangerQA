@@ -446,14 +446,14 @@ while True:
                     window['D20diff'+diffkey]( '%.4f' % r['D20 diff'][i], background_color= passflag_colors[passflag_labels.index(r['D20 PASSFLAG'][i])])
                     window['D80diff'+diffkey]( '%.4f' % r['D80 diff'][i], background_color= passflag_colors[passflag_labels.index(r['D80 PASSFLAG'][i])])
                     window['D90diff'+diffkey]( '%.4f' % r['D90 diff'][i], background_color= passflag_colors[passflag_labels.index(r['D90 PASSFLAG'][i])])
-                    if r['D20 PASSFLAG'][i] == 'FAIL' or r['D80 PASSFLAG'][i] == 'FAIL' or r['D90 PASSFLAG'][i] == 'FAIL':
+                    if 'GANTRY' in t.upper() and (r['D20 PASSFLAG'][i] == 'FAIL' or r['D80 PASSFLAG'][i] == 'FAIL' or r['D90 PASSFLAG'][i] == 'FAIL'):
                         if i < 4:
                             window['-spfHi-']('FAIL', background_color='red')
                             hiflag = 1
                         else:
                             window['-spfLo-']('FAIL', background_color='red')
                             loflag = 1
-                    elif (r['D20 PASSFLAG'][i] == 'WARN' or r['D80 PASSFLAG'][i] == 'WARN' or r['D90 PASSFLAG'][i] == 'WARN'):
+                    elif 'GANTRY' in t.upper() and (r['D20 PASSFLAG'][i] == 'WARN' or r['D80 PASSFLAG'][i] == 'WARN' or r['D90 PASSFLAG'][i] == 'WARN'):
                         if i < 4 and hiflag==0:
                             window['-spfHi-']('WARN', background_color='orange')
                         elif loflag==0:
