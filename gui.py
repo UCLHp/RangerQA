@@ -13,7 +13,7 @@ from report import report_maker
 from PIL import Image
 
 # Use simple Ranger calibration factors
-sc = True
+sc = False
 
 # WARN/FAIL tresholds Levels
 delta = [0.5,1.0] # abs(mm)
@@ -22,7 +22,7 @@ passflag_labels = ['PASS','WARN','FAIL']
 
 # Dummy data
 G  = ['Gantry 1','Gantry 2','Gantry 3','Gantry 4']
-Op = ['AB', 'AG', 'AGr', 'AJP', 'AK', 'AM', 'AT', 'AW', 'CB', 'CG', 'PI', 'RM', 'SC', 'SG', 'SavC', 'TNC', 'VMA', 'VR']
+Op = ['AB', 'AG', 'AGr', 'AJP', 'AK', 'AT', 'AW', 'EE', 'CB', 'CG', 'JW', 'PI', 'RM', 'SC', 'SG', 'SavC', 'TNC', 'VMA', 'VR']
 RS = ['None', 'RS 5cm', 'RS 3cm', 'RS 2cm']
 BU = ['None', 'PTFE 13.27', 'PMMA 11.05', 'PMMA 11.10']
 
@@ -105,7 +105,7 @@ class RangerResults():
                 #calculate deltas
                 dref = np.array( df[d].tolist() )
                 drng = np.array( df['Ranger'+d].tolist() )
-                diffs = list(dref-drng)
+                diffs = list(drng-dref)
                 df[d+' diff'] = diffs
                 passflags = [passflag_labels[0] if abs(i) <= self.delta[0] else passflag_labels[1] if abs(i) <= self.delta[1] else passflag_labels[2] for i in diffs]
                 df[d+' PASSFLAG'] = passflags
